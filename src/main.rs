@@ -10,6 +10,7 @@ use std::collections::LinkedList;
 
 const WIDTH: u8 = 30;
 const HEIGHT: u8 = 20;
+const GRID_STEP: f64 = 25.0;
 
 pub struct Game {
     gl: GlGraphics,
@@ -169,7 +170,11 @@ impl Renderable for Snake {
             .body
             .iter()
             .map(|&(x, y)| {
-                graphics::rectangle::square((x * 20) as f64 + 0.5, (y * 20) as f64 + 0.5, 19_f64)
+                graphics::rectangle::square(
+                    x as f64 * GRID_STEP + 0.5,
+                    y as f64 * GRID_STEP + 0.5,
+                    GRID_STEP - 1.0,
+                )
             })
             .collect();
 
@@ -188,8 +193,11 @@ impl Renderable for Food {
         let blue: [f32; 4] = [0.08, 0.4, 0.53, 1.0];
         let (x, y) = self.position;
 
-        let square =
-            graphics::rectangle::square((x * 20) as f64 + 0.5, (y * 20) as f64 + 0.5, 19_f64);
+        let square = graphics::rectangle::square(
+            x as f64 * GRID_STEP + 0.5,
+            y as f64 * GRID_STEP + 0.5,
+            GRID_STEP - 1.0,
+        );
 
         gl.draw(args.viewport(), |c, gl| {
             let transform = c.transform;
@@ -216,12 +224,17 @@ impl From<Color> for [f32; 4] {
 fn main() {
     let opengl = OpenGL::V4_5;
 
-    let mut window: PistonWindow =
-        WindowSettings::new("Snake", [20 * WIDTH as u32, 20 * HEIGHT as u32])
-            .graphics_api(opengl)
-            .exit_on_esc(true)
-            .build()
-            .unwrap();
+    let mut window: PistonWindow = WindowSettings::new(
+        "Snake",
+        [
+            (GRID_STEP * WIDTH as f64) as u32,
+            (GRID_STEP * HEIGHT as f64) as u32,
+        ],
+    )
+    .graphics_api(opengl)
+    .exit_on_esc(true)
+    .build()
+    .unwrap();
 
     let mut game = Game::new(GlGraphics::new(opengl), (WIDTH, HEIGHT));
 
