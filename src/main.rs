@@ -36,10 +36,10 @@ impl Game {
     }
 
     fn render(&mut self, args: &RenderArgs) {
-        let green: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
+        let background_color: [f32; 4] = [0.99, 0.93, 0.8, 1.0];
 
         self.gl.draw(args.viewport(), |_c, gl| {
-            graphics::clear(green, gl);
+            graphics::clear(background_color, gl);
         });
         self.food.render(&mut self.gl, args);
         self.snake.render(&mut self.gl, args);
@@ -163,12 +163,14 @@ trait Renderable {
 
 impl Renderable for Snake {
     fn render(&self, gl: &mut GlGraphics, args: &RenderArgs) {
-        let red: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
+        let red: [f32; 4] = [0.99, 0.16, 0.03, 1.0];
 
         let squares: Vec<graphics::types::Rectangle> = self
             .body
             .iter()
-            .map(|&(x, y)| graphics::rectangle::square((x * 20) as f64, (y * 20) as f64, 20_f64))
+            .map(|&(x, y)| {
+                graphics::rectangle::square((x * 20) as f64 + 0.5, (y * 20) as f64 + 0.5, 19_f64)
+            })
             .collect();
 
         gl.draw(args.viewport(), |c, gl| {
@@ -183,16 +185,31 @@ impl Renderable for Snake {
 
 impl Renderable for Food {
     fn render(&self, gl: &mut GlGraphics, args: &RenderArgs) {
-        let blue: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
+        let blue: [f32; 4] = [0.08, 0.4, 0.53, 1.0];
         let (x, y) = self.position;
 
-        let square = graphics::rectangle::square((x * 20) as f64, (y * 20) as f64, 20_f64);
+        let square =
+            graphics::rectangle::square((x * 20) as f64 + 0.5, (y * 20) as f64 + 0.5, 19_f64);
 
         gl.draw(args.viewport(), |c, gl| {
             let transform = c.transform;
 
             graphics::rectangle(blue, square, transform, gl);
         })
+    }
+}
+
+struct Color(u32);
+
+impl From<Color> for [f32; 4] {
+    fn from(color: Color) -> Self {
+        let filter: u32 = 0xff;
+        let a = (color.0 >> 24 & filter) as f32 / 255.0;
+        let r = (color.0 >> 16 & filter) as f32 / 255.0;
+        let g = (color.0 >> 8 & filter) as f32 / 255.0;
+        let b = (color.0 & filter) as f32 / 255.0;
+
+        [r, g, b, a]
     }
 }
 
