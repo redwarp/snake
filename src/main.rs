@@ -243,4 +243,6 @@ fn main() {
             game.pressed(&args.button);
         }
     }
+
+    println!("You died after eating {} food stuff!", game.score);
 }
