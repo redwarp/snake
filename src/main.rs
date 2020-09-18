@@ -1,11 +1,10 @@
 use opengl_graphics::{GlGraphics, OpenGL};
 
-use graphics::Rectangle;
+use glutin_window::GlutinWindow as Window;
 use graphics::Transformed;
 use piston::event_loop::{EventSettings, Events};
 use piston::input::{Button, ButtonEvent, Key, RenderArgs, RenderEvent, UpdateEvent};
 use piston::window::WindowSettings;
-use piston_window::PistonWindow;
 
 use rand::Rng;
 use std::collections::LinkedList;
@@ -256,7 +255,7 @@ impl From<Color> for [f32; 4] {
 fn main() {
     let opengl = OpenGL::V4_5;
 
-    let mut window: PistonWindow = WindowSettings::new(
+    let mut window: Window = WindowSettings::new(
         "Snake",
         [
             (GRID_STEP * WIDTH as f64) as u32,
