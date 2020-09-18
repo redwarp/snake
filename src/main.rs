@@ -7,7 +7,7 @@ use piston::input::{Button, ButtonEvent, Key, RenderArgs, RenderEvent, UpdateEve
 use piston::window::WindowSettings;
 
 use rand::Rng;
-use std::collections::LinkedList;
+use std::collections::VecDeque;
 
 const WIDTH: u8 = 30;
 const HEIGHT: u8 = 20;
@@ -83,7 +83,20 @@ impl Game {
 
     fn generate_food(&mut self) {
         let (width, height) = self.size;
-        let index = rand::thread_rng().gen_range(0, width as i32 * height as i32);
+        let mut index = rand::thread_rng().gen_range(
+            0,
+            width as i32 * height as i32 - self.snake.body.len() as i32,
+        );
+        let body_indices: Vec<i32> = self
+            .snake
+            .body
+            .iter()
+            .map(|&(x, y)| y * width as i32 + x)
+            .collect();
+        while body_indices.iter().any(|&i| i == index) {
+            index = (index + 1) % (width * height) as i32;
+        }
+
         self.food.position = (index % width as i32, index / width as i32);
     }
 
@@ -101,13 +114,13 @@ enum Direction {
 }
 
 struct Snake {
-    body: LinkedList<(i32, i32)>,
+    body: VecDeque<(i32, i32)>,
     direction: Direction,
 }
 
 impl Snake {
     fn new() -> Self {
-        let mut body = LinkedList::new();
+        let mut body = VecDeque::new();
         body.push_front((5, 5));
         body.push_back((4, 5));
         Snake {
