@@ -5,28 +5,63 @@ use piston::input::{Button, ButtonEvent, Key, RenderArgs, RenderEvent, UpdateArg
 use piston::window::WindowSettings;
 use piston_window::PistonWindow;
 
+use rand::Rng;
 use std::collections::LinkedList;
+
+const WIDTH: u8 = 30;
+const HEIGHT: u8 = 20;
 
 pub struct Game {
     gl: GlGraphics,
+    size: (u8, u8),
     snake: Snake,
+    food: Food,
+    direction_updated: bool,
+    score: u32,
 }
 
 impl Game {
+    fn new(gl: GlGraphics, size: (u8, u8)) -> Self {
+        let mut game = Game {
+            gl,
+            size,
+            snake: Snake::new(),
+            food: Food { position: (0, 0) },
+            direction_updated: false,
+            score: 0,
+        };
+        game.generate_food();
+
+        game
+    }
+
     fn render(&mut self, args: &RenderArgs) {
         let green: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
 
         self.gl.draw(args.viewport(), |_c, gl| {
             graphics::clear(green, gl);
         });
+        self.food.render(&mut self.gl, args);
         self.snake.render(&mut self.gl, args);
     }
 
-    fn update(&mut self, args: &UpdateArgs) {
-        self.snake.update(args);
+    fn update(&mut self) -> bool {
+        self.snake.update(&self.food);
+
+        if self.snake.is_eating(&self.food) {
+            self.generate_food();
+            self.score += 1;
+        }
+
+        self.direction_updated = false;
+
+        !self.is_loosing()
     }
 
     fn pressed(&mut self, button: &Button) {
+        if self.direction_updated {
+            return;
+        }
         let previous_direction = self.snake.direction.clone();
         self.snake.direction = match button {
             &Button::Keyboard(Key::Up) if previous_direction != Direction::Down => Direction::Up,
@@ -39,6 +74,19 @@ impl Game {
             }
             _ => previous_direction,
         };
+        if previous_direction != self.snake.direction {
+            self.direction_updated = true
+        }
+    }
+
+    fn generate_food(&mut self) {
+        let (width, height) = self.size;
+        let index = rand::thread_rng().gen_range(0, width as i32 * height as i32);
+        self.food.position = (index % width as i32, index / width as i32);
+    }
+
+    fn is_loosing(&self) -> bool {
+        self.snake.is_eating_itself() || self.snake.is_out_of_bounds(self.size)
     }
 }
 
@@ -59,13 +107,61 @@ impl Snake {
     fn new() -> Self {
         let mut body = LinkedList::new();
         body.push_front((5, 5));
-        body.push_back((4,5));
+        body.push_back((4, 5));
         Snake {
             body: body,
             direction: Direction::Right,
         }
     }
 
+    fn head(&self) -> &(i32, i32) {
+        self.body.front().expect("The snake has no body")
+    }
+
+    fn update(&mut self, food: &Food) {
+        let mut new_head = self.head().clone();
+        match self.direction {
+            Direction::Left => new_head.0 -= 1,
+            Direction::Right => new_head.0 += 1,
+            Direction::Up => new_head.1 -= 1,
+            Direction::Down => new_head.1 += 1,
+        }
+        self.body.push_front(new_head);
+        if !self.is_eating(food) {
+            self.body.pop_back();
+        }
+    }
+
+    fn is_eating(&self, food: &Food) -> bool {
+        self.head() == &food.position
+    }
+
+    fn is_eating_itself(&self) -> bool {
+        let head = self.head().clone();
+        self.body.iter().skip(1).any(|ring| &head == ring)
+    }
+
+    fn is_out_of_bounds(&self, bounds: (u8, u8)) -> bool {
+        let width = bounds.0 as i32;
+        let height = bounds.1 as i32;
+        let (x, y) = self.head().clone();
+        if x < 0 || x >= width || y < 0 || y >= height {
+            true
+        } else {
+            false
+        }
+    }
+}
+
+struct Food {
+    position: (i32, i32),
+}
+
+trait Renderable {
+    fn render(&self, gl: &mut GlGraphics, args: &RenderArgs);
+}
+
+impl Renderable for Snake {
     fn render(&self, gl: &mut GlGraphics, args: &RenderArgs) {
         let red: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
 
@@ -83,48 +179,51 @@ impl Snake {
             }
         })
     }
+}
 
-    fn update(&mut self, _args: &UpdateArgs) {
-        let mut new_head = self.body.front().expect("Snake has no body").clone();
-        match self.direction {
-            Direction::Left => new_head.0 -= 1,
-            Direction::Right => new_head.0 += 1,
-            Direction::Up => new_head.1 -= 1,
-            Direction::Down => new_head.1 += 1,
-        }
-        self.body.push_front(new_head);
-        self.body.pop_back();
+impl Renderable for Food {
+    fn render(&self, gl: &mut GlGraphics, args: &RenderArgs) {
+        let blue: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
+        let (x, y) = self.position;
+
+        let square = graphics::rectangle::square((x * 20) as f64, (y * 20) as f64, 20_f64);
+
+        gl.draw(args.viewport(), |c, gl| {
+            let transform = c.transform;
+
+            graphics::rectangle(blue, square, transform, gl);
+        })
     }
 }
 
 fn main() {
     let opengl = OpenGL::V4_5;
 
-    let mut window: PistonWindow = WindowSettings::new("Snake", [400, 400])
-        .graphics_api(opengl)
-        .exit_on_esc(true)
-        .build()
-        .unwrap();
+    let mut window: PistonWindow =
+        WindowSettings::new("Snake", [20 * WIDTH as u32, 20 * HEIGHT as u32])
+            .graphics_api(opengl)
+            .exit_on_esc(true)
+            .build()
+            .unwrap();
 
-    let mut game = Game {
-        gl: GlGraphics::new(opengl),
-        snake: Snake::new(),
-    };
+    let mut game = Game::new(GlGraphics::new(opengl), (WIDTH, HEIGHT));
 
     let mut settings = EventSettings::new();
-    settings.ups = 4;
+    settings.ups = 8;
     let mut events = Events::new(settings);
     while let Some(e) = events.next(&mut window) {
         if let Some(args) = e.render_args() {
             game.render(&args);
         }
 
-        if let Some(args) = e.update_args() {
-            game.update(&args);
+        if let Some(_args) = e.update_args() {
+            if !game.update() {
+                break;
+            }
         }
 
-        if let Some(k) = e.button_args() {
-            game.pressed(&k.button);
+        if let Some(args) = e.button_args() {
+            game.pressed(&args.button);
         }
     }
 }
