@@ -1,5 +1,7 @@
 use opengl_graphics::{GlGraphics, OpenGL};
 
+use graphics::Rectangle;
+use graphics::Transformed;
 use piston::event_loop::{EventSettings, Events};
 use piston::input::{Button, ButtonEvent, Key, RenderArgs, RenderEvent, UpdateEvent};
 use piston::window::WindowSettings;
@@ -17,7 +19,7 @@ pub struct Game {
     size: (u8, u8),
     snake: Snake,
     food: Food,
-    direction_updated: bool,
+    pending_direction: Option<Direction>,
     score: u32,
 }
 
@@ -28,7 +30,7 @@ impl Game {
             size,
             snake: Snake::new(),
             food: Food { position: (0, 0) },
-            direction_updated: false,
+            pending_direction: None,
             score: 0,
         };
         game.generate_food();
@@ -47,24 +49,24 @@ impl Game {
     }
 
     fn update(&mut self) -> bool {
-        self.snake.update(&self.food);
+        self.snake.update(&self.food, self.pending_direction);
 
         if self.snake.is_eating(&self.food) {
             self.generate_food();
             self.score += 1;
         }
 
-        self.direction_updated = false;
+        self.pending_direction = None;
 
         !self.is_loosing()
     }
 
     fn pressed(&mut self, button: &Button) {
-        if self.direction_updated {
+        if let Some(_) = self.pending_direction {
             return;
         }
         let previous_direction = self.snake.direction.clone();
-        self.snake.direction = match button {
+        let direction = match button {
             &Button::Keyboard(Key::Up) if previous_direction != Direction::Down => Direction::Up,
             &Button::Keyboard(Key::Down) if previous_direction != Direction::Up => Direction::Down,
             &Button::Keyboard(Key::Left) if previous_direction != Direction::Right => {
@@ -75,8 +77,8 @@ impl Game {
             }
             _ => previous_direction,
         };
-        if previous_direction != self.snake.direction {
-            self.direction_updated = true
+        if previous_direction != direction {
+            self.pending_direction = Some(direction);
         }
     }
 
@@ -119,7 +121,11 @@ impl Snake {
         self.body.front().expect("The snake has no body")
     }
 
-    fn update(&mut self, food: &Food) {
+    fn update(&mut self, food: &Food, new_direction: Option<Direction>) {
+        if let Some(direction) = new_direction {
+            self.direction = direction;
+        }
+
         let mut new_head = self.head().clone();
         match self.direction {
             Direction::Left => new_head.0 -= 1,
@@ -164,7 +170,16 @@ trait Renderable {
 
 impl Renderable for Snake {
     fn render(&self, gl: &mut GlGraphics, args: &RenderArgs) {
+        fn eyes() -> ([f64; 4], [f64; 4]) {
+            let left =
+                graphics::rectangle::square(-0.35 * GRID_STEP, -0.3 * GRID_STEP, GRID_STEP * 0.2);
+            let right =
+                graphics::rectangle::square(0.15 * GRID_STEP, -0.3 * GRID_STEP, GRID_STEP * 0.2);
+            (left, right)
+        }
+
         let red: [f32; 4] = [0.99, 0.16, 0.03, 1.0];
+        let eye_color: [f32; 4] = [0.04, 0.05, 0.06, 1.0];
 
         let squares: Vec<graphics::types::Rectangle> = self
             .body
@@ -177,6 +192,7 @@ impl Renderable for Snake {
                 )
             })
             .collect();
+        let head = self.head().clone();
 
         gl.draw(args.viewport(), |c, gl| {
             let transform = c.transform;
@@ -184,6 +200,22 @@ impl Renderable for Snake {
             for square in squares {
                 graphics::rectangle(red, square, transform, gl);
             }
+
+            let eye_transform = c
+                .transform
+                .trans(
+                    (head.0 as f64 + 0.5) * GRID_STEP + 0.5,
+                    (head.1 as f64 + 0.5) * GRID_STEP + 0.5,
+                )
+                .rot_deg(match self.direction {
+                    Direction::Up => 0.0,
+                    Direction::Right => 90.0,
+                    Direction::Down => 180.0,
+                    Direction::Left => 270.0,
+                });
+            let (left, right) = eyes();
+            graphics::rectangle(eye_color, left, eye_transform, gl);
+            graphics::rectangle(eye_color, right, eye_transform, gl);
         })
     }
 }
