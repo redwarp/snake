@@ -1,7 +1,7 @@
 use opengl_graphics::{GlGraphics, OpenGL};
 
 use piston::event_loop::{EventSettings, Events};
-use piston::input::{Button, ButtonEvent, Key, RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
+use piston::input::{Button, ButtonEvent, Key, RenderArgs, RenderEvent, UpdateEvent};
 use piston::window::WindowSettings;
 use piston_window::PistonWindow;
 
